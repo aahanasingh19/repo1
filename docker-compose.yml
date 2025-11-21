@@ -1,0 +1,147 @@
+version: "3.8"
+
+services:
+  # --- Infrastructure ---
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: codejudge
+      POSTGRES_PASSWORD: codejudge_pass
+      POSTGRES_DB: codejudge_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codejudge"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # --- Application Services ---
+
+  problem-service:
+    build:
+      context: "./problem-service"
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      MONGODB_URL: mongodb://admin:password@mongodb:27017/codejudge?authSource=admin
+      NODE_ENV: production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  submission-service:
+    build:
+      context: "./submission-service"
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      MONGODB_URL: mongodb://admin:password@mongodb:27017/codejudge?authSource=admin
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: codejudge
+      PG_PASSWORD: codejudge_pass
+      PG_DATABASE: codejudge_db
+      PROBLEM_SERVICE_BASE_URL: http://problem-service:3000
+      SOCKET_SERVICE_URL: http://gateway-service:5001
+      JWT_SECRET: codeforge_production_secret_key
+      NODE_ENV: production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  executor-service:
+    build:
+      context: "./executor-service"
+    ports:
+      - "7000:7000"
+    environment:
+      PORT: 7000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: production
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  gateway-service:
+    build:
+      context: "./gateway-service"
+    ports:
+      - "5001:5001"
+    environment:
+      PORT: 5001
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: production
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  client:
+    build:
+      context: "./client"
+      args:
+        VITE_API_BASE: http://localhost:4000
+        VITE_PROBLEM_API: http://localhost:3000
+        VITE_SOCKET_URL: http://localhost:5001
+    ports:
+      - "80:80"
+    depends_on:
+      - submission-service
+      - problem-service
+      - gateway-service
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  mongo_data:
+  postgres_data:
