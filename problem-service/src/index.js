@@ -1,0 +1,31 @@
+const express = require("express");
+const cors = require("cors");
+const { PORT } = require("./config/server.config.js");
+const apiRouter = require("./routes");
+const { errorHandler } = require("./utils");
+const DatabaseConn = require("./config/DatabaseConn.js");
+const { StatusCodes } = require("http-status-codes");
+
+const app = express();
+app.use(cors());
+
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.text());
+
+app.get("/", (req, res) => {
+  return res.status(StatusCodes.OK).json({ message: "CodeForge Problem Service is live" });
+});
+
+app.get("/health", (req, res) => {
+  return res.status(StatusCodes.OK).json({ status: "healthy", service: "codeforge-problem" });
+});
+
+app.use("/api", apiRouter);
+
+app.use(errorHandler);
+
+app.listen(PORT, async () => {
+  console.log(`server is running at port ${PORT}`);
+  await DatabaseConn.connect();
+});
