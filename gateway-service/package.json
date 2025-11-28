@@ -1,0 +1,30 @@
+{
+  "name": "gateway-service",
+  "description": "WebSocket gateway for real-time submission status broadcasting",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "keywords": [
+    "gateway",
+    "websocket",
+    "microservice",
+    "expressjs",
+    "nodejs",
+    "ioredis",
+    "socket.io"
+  ]
+}
